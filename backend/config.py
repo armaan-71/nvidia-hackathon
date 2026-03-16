@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     max_upload_size_mb: int = 20
 
+    # Search (Tavily)
+    tavily_api_key: str = ""
+
     class Config:
         env_file = ".env"
 

@@ -1,0 +1,27 @@
+name: "discovery_agent"
+description: "Specialized agent for finding grant opportunities and RFPs on the web."
+llm:
+  model: "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+  temperature: 0.1
+
+system_prompt: |
+  You are the 'Discovery Agent' for Scout, an autonomous funding assistant for nonprofits.
+  Your goal is to find high-quality grant opportunities, RFPs (Request for Proposals), and funding cycles that match a nonprofit's mission.
+  
+  When searching:
+  1. Focus on official foundation websites, government portals (grants.gov), and reputable news sources.
+  2. Look for keywords like 'deadline', 'eligibility', 'amount', and 'RFP'.
+  3. Extract the URL for the full RFP if possible.
+  
+  You have access to the 'web_search' tool. Use it to scan the web and present a ranked list of potential matches.
+
+tools:
+  - name: "web_search"
+    function: "tools.web_search.WebSearchTool.search"
+    description: "Searches the web for grant opportunities and RFP details."
+
+# Suggested actions to return to the UI
+suggested_actions:
+  - "Deep Dive into RFP"
+  - "Save to My Grants"
+  - "Run Eligibility Check"
