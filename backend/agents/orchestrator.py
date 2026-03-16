@@ -4,12 +4,13 @@ from typing import Dict, Any, Optional
 from .discovery import DiscoveryAgent
 from .analyzer import AnalyzerAgent
 from .scorer import ScorerAgent
+from .drafter import DrafterAgent
 from models import AgentResponse
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Keywords that indicate the user wants analysis vs discovery
+# Keywords that indicate intent
 ANALYZER_KEYWORDS = [
     "analyze", "eligibility", "eligible", "qualify", "compare",
     "criteria", "requirement", "deep dive",
@@ -18,6 +19,10 @@ ANALYZER_KEYWORDS = [
 
 SCORER_KEYWORDS = [
     "score", "match", "rating", "rank", "percent", "percentage", "points"
+]
+
+DRAFTER_KEYWORDS = [
+    "draft", "write", "proposal", "narrative", "outline", "apply", "application"
 ]
 
 class AgentOrchestrator:
@@ -30,7 +35,8 @@ class AgentOrchestrator:
         self.agents = {
             "discovery": DiscoveryAgent(),
             "analyzer": AnalyzerAgent(),
-            "scorer": ScorerAgent()
+            "scorer": ScorerAgent(),
+            "drafter": DrafterAgent()
         }
         
     def _route(self, user_input: str) -> str:
@@ -40,12 +46,17 @@ class AgentOrchestrator:
         """
         lower = user_input.lower()
         
-        # Priority 1: Scorer
+        # Priority 1: Drafter
+        for keyword in DRAFTER_KEYWORDS:
+            if keyword in lower:
+                return "drafter"
+        
+        # Priority 2: Scorer
         for keyword in SCORER_KEYWORDS:
             if keyword in lower:
                 return "scorer"
                 
-        # Priority 2: Analyzer
+        # Priority 3: Analyzer
         for keyword in ANALYZER_KEYWORDS:
             if keyword in lower:
                 return "analyzer"
