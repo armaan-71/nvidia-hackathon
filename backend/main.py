@@ -5,6 +5,8 @@ import os
 import tempfile
 from retrieval.ingest import DocumentProcessor
 from retrieval.vector_store import VectorStoreManager
+from agents.orchestrator import AgentOrchestrator
+from models import ChatRequest, AgentResponse
 from config import get_settings
 
 # Load settings
@@ -28,6 +30,7 @@ app.add_middleware(
 # Initialize components
 processor = DocumentProcessor()
 vector_store = VectorStoreManager()
+orchestrator = AgentOrchestrator()
 
 # Ensure temp directory exists
 os.makedirs("./temp_uploads", exist_ok=True)
@@ -76,6 +79,18 @@ async def search_knowledge(q: str):
     """
     results = vector_store.query(q)
     return {"results": results}
+
+@app.post("/api/agent/chat", response_model=AgentResponse)
+async def agent_chat(request: ChatRequest):
+    """
+    Agentic chat endpoint that orchestrates between specialists.
+    """
+    try:
+        response = await orchestrator.chat(request.message, request.session_id)
+        return response
+    except Exception as e:
+        print(f"Agent Orchestration Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Agent failed to respond: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
