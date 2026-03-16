@@ -3,6 +3,7 @@ import logging
 from typing import List
 from openai import OpenAI
 from dotenv import load_dotenv
+from config import get_settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -18,12 +19,13 @@ class NvidiaEmbedder:
     Model: nvidia/nv-embedqa-e5-v5
     """
     def __init__(self):
-        self.api_key = os.getenv("NVIDIA_API_KEY")
-        self.base_url = "https://integrate.api.nvidia.com/v1"
-        self.model = "nvidia/nv-embedqa-e5-v5"
+        settings = get_settings()
+        self.api_key = os.getenv("NVIDIA_API_KEY") or settings.nvidia_api_key
+        self.base_url = settings.nim_base_url
+        self.model = settings.embedding_model
         
         if not self.api_key:
-            raise ValueError("NVIDIA_API_KEY not found in environment variables. Please set it in your .env file.")
+            raise ValueError("NVIDIA_API_KEY not found in environment variables or config. Please set it in your .env file.")
         
         self.client = OpenAI(
             base_url=self.base_url,

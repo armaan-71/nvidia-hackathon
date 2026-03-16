@@ -5,13 +5,21 @@ import os
 import tempfile
 from retrieval.ingest import DocumentProcessor
 from retrieval.vector_store import VectorStoreManager
+from config import get_settings
 
-app = FastAPI(title="Scout: Autonomous Funding Agent API")
+# Load settings
+settings = get_settings()
 
-# Setup CORS - In production, replace "*" with specific origins
+app = FastAPI(
+    title="Scout API",
+    description="Autonomous funding agent for nonprofits",
+    version="0.1.0",
+)
+
+# Setup CORS using settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], # Next.js default dev port
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,8 +33,9 @@ vector_store = VectorStoreManager()
 os.makedirs("./temp_uploads", exist_ok=True)
 
 @app.get("/")
-async def root():
-    return {"status": "Scout API is live", "engine": "NVIDIA NIM / Nemotron"}
+@app.get("/health")
+async def health():
+    return {"status": "Scout API is live", "engine": "NVIDIA NIM / Nemotron", "version": "0.1.0"}
 
 @app.post("/ingest")
 async def ingest_document(file: UploadFile = File(...)):

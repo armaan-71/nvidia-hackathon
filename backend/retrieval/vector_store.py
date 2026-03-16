@@ -1,16 +1,18 @@
 import chromadb
 from typing import List, Dict, Any
 from .embedder import NvidiaEmbedder
+from config import get_settings
 
 class VectorStoreManager:
     """
     Manages the ChromaDB instance for storing and retrieving document embeddings.
     """
-    def __init__(self, collection_name: str = "scout_knowledge"):
-        self.client = chromadb.PersistentClient(path="./chroma_db")
+    def __init__(self, collection_name: str = None):
+        settings = get_settings()
+        self.client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
         self.embedder = NvidiaEmbedder()
         self.collection = self.client.get_or_create_collection(
-            name=collection_name,
+            name=collection_name or settings.chroma_collection_name,
             metadata={"hnsw:space": "cosine"}
         )
 
