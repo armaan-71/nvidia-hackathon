@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import List
 
 
 class Settings(BaseSettings):
@@ -7,9 +8,9 @@ class Settings(BaseSettings):
     nvidia_api_key: str = ""
     nim_base_url: str = "https://integrate.api.nvidia.com/v1"
 
-    # Models
-    primary_model: str = "nvidia/llama-3.1-nemotron-ultra-253b-v1"
-    fallback_model: str = "nvidia/llama-3.1-nemotron-nano-8b-v1"
+    # Models (swap to ultra once you have credits for it)
+    primary_model: str = "nvidia/llama-3.1-nemotron-nano-8b-v1"
+    fallback_model: str = "nvidia/llama-3.1-nemotron-ultra-253b-v1"
     embedding_model: str = "nvidia/nv-embedqa-e5-v5"
 
     # Chroma
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
     chroma_collection_name: str = "scout_docs"
 
     # App
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: List[str] = ["http://localhost:3000"]
     max_upload_size_mb: int = 20
 
     class Config:
