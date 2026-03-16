@@ -7,9 +7,6 @@ class DocumentProcessor:
     """
     Handles text extraction and chunking of documents using the Unstructured library.
     """
-    def __init__(self):
-        pass
-
     def process_file(self, file_path: str) -> List[Dict[str, str]]:
         """
         Partitions and chunks a document into a list of text segments with metadata.

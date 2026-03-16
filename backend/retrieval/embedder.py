@@ -1,7 +1,12 @@
 import os
+import logging
 from typing import List
 from openai import OpenAI
 from dotenv import load_dotenv
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Load environment variables from potential locations
 load_dotenv() # Load from CWD
@@ -18,7 +23,7 @@ class NvidiaEmbedder:
         self.model = "nvidia/nv-embedqa-e5-v5"
         
         if not self.api_key:
-            print("Warning: NVIDIA_API_KEY not found in environment variables.")
+            raise ValueError("NVIDIA_API_KEY not found in environment variables. Please set it in your .env file.")
         
         self.client = OpenAI(
             base_url=self.base_url,
@@ -33,19 +38,19 @@ class NvidiaEmbedder:
         # The nv-embedqa-e5-v5 model expects type prefixes or specific formatting usually
         # but the NIM API handles this if configured via the OpenAI-compatible endpoint.
         try:
-            print(f"Requesting embeddings for {len(texts)} chunks (type: {input_type})...")
+            logger.info(f"Requesting embeddings for {len(texts)} chunks (type: {input_type})...")
             response = self.client.embeddings.create(
                 input=texts,
                 model=self.model,
                 extra_body={"input_type": input_type, "truncate": "NONE"}
             )
-            print(f"NIM Response Status: Successfully generated {len(response.data)} embeddings.")
+            logger.info(f"NIM Response Status: Successfully generated {len(response.data)} embeddings.")
             return [data.embedding for data in response.data]
         except Exception as e:
-            print(f"!!! Error fetching embeddings from NIM: {e}")
+            logger.error(f"!!! Error fetching embeddings from NIM: {e}")
             # If it's an API error, print the response content if possible
             if hasattr(e, 'response'):
-                print(f"API Response: {e.response.text}")
+                logger.error(f"API Response: {e.response.text}")
             return []
 
 if __name__ == "__main__":

@@ -49,12 +49,15 @@ class VectorStoreManager:
             n_results=n_results
         )
         
-        formatted_results = []
-        for i in range(len(results["documents"][0])):
-            formatted_results.append({
-                "text": results["documents"][0][i],
-                "metadata": results["metadatas"][0][i],
-                "distance": results["distances"][0][i]
-            })
+        documents = results.get("documents", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+        distances = results.get("distances", [[]])[0]
         
-        return formatted_results
+        return [
+            {
+                "text": doc,
+                "metadata": meta,
+                "distance": dist,
+            }
+            for doc, meta, dist in zip(documents, metadatas, distances)
+        ]
