@@ -2,10 +2,18 @@ import logging
 import os
 from typing import Dict, Any, Optional
 from .discovery import DiscoveryAgent
+from .analyzer import AnalyzerAgent
 from models import AgentResponse
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Keywords that indicate the user wants analysis vs discovery
+ANALYZER_KEYWORDS = [
+    "analyze", "eligibility", "eligible", "qualify", "compare",
+    "match", "fit", "criteria", "requirement", "deep dive",
+    "check", "review", "assess", "evaluate", "rfp"
+]
 
 class AgentOrchestrator:
     """
@@ -16,21 +24,28 @@ class AgentOrchestrator:
         # Initialize specialists
         self.agents = {
             "discovery": DiscoveryAgent(),
-            # "analyzer": AnalyzerAgent(), # Future
+            "analyzer": AnalyzerAgent(),
             # "scorer": ScorerAgent()      # Future
         }
         
+    def _route(self, user_input: str) -> str:
+        """
+        Simple intent-based routing.
+        Determines which specialist agent should handle the request.
+        """
+        lower = user_input.lower()
+        for keyword in ANALYZER_KEYWORDS:
+            if keyword in lower:
+                return "analyzer"
+        return "discovery"
+
     async def chat(self, user_input: str, session_id: str) -> AgentResponse:
         """
         Main entry point for agentic interactions.
-        For now, it defaults to the Discovery Agent.
-        In the future, it will use a Router Agent to decide.
+        Routes to the appropriate specialist based on intent detection.
         """
-        logger.info(f"Orchestrating request for session {session_id}: {user_input}")
-        
-        # 1. Logic to determine which agent to use
-        # Simple heuristic: If it's the start, use discovery.
-        selected_agent_name = "discovery"
+        selected_agent_name = self._route(user_input)
+        logger.info(f"Orchestrating [{selected_agent_name}] for session {session_id}: {user_input[:80]}...")
         
         agent = self.agents.get(selected_agent_name)
         if not agent:
@@ -40,11 +55,8 @@ class AgentOrchestrator:
                 session_id=session_id
             )
 
-        # 2. Run the specialist
-        # Pass context if needed (e.g. state from previous turns)
         result = await agent.run(user_input)
         
-        # 3. Format and return
         return AgentResponse(
             message=result["message"],
             active_agent=result["active_agent"],
