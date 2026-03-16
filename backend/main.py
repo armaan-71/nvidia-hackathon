@@ -1,5 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Dict, Any
 import shutil
 import os
 import tempfile
@@ -8,6 +9,7 @@ from retrieval.vector_store import VectorStoreManager
 from agents.orchestrator import AgentOrchestrator
 from models import ChatRequest, AgentResponse
 from config import get_settings
+import session_store
 
 # Load settings
 settings = get_settings()
@@ -91,6 +93,36 @@ async def agent_chat(request: ChatRequest):
     except Exception as e:
         print(f"Agent Orchestration Error: {e}")
         raise HTTPException(status_code=500, detail=f"Agent failed to respond: {str(e)}")
+
+
+@app.post("/chat", response_model=AgentResponse)
+async def chat(request: ChatRequest):
+    """
+    Primary chat endpoint. Calls the agent orchestrator and caches any
+    discovered grants so they can be retrieved via GET /grants.
+    """
+    try:
+        response = await orchestrator.chat(request.message, request.session_id)
+
+        # Cache grants if the discovery agent returned any
+        if response.data and "grants" in response.data:
+            grants = response.data["grants"]
+            if isinstance(grants, list) and grants:
+                session_store.save_grants(request.session_id, grants)
+
+        return response
+    except Exception as e:
+        print(f"Agent Orchestration Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Agent failed to respond: {str(e)}")
+
+
+@app.get("/grants", response_model=List[Dict[str, Any]])
+def get_grants(session_id: str = Query(..., description="Session ID from a previous /chat call")):
+    """
+    Returns the ranked grant opportunities discovered during a chat session.
+    """
+    return session_store.get_grants(session_id)
+
 
 if __name__ == "__main__":
     import uvicorn
