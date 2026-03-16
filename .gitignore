@@ -1,1 +1,15 @@
 /.claude/
+.idea/
+
+# Environment
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Chroma
+chroma_db/
