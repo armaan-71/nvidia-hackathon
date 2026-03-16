@@ -3,6 +3,7 @@ import os
 from typing import Dict, Any, Optional
 from .discovery import DiscoveryAgent
 from .analyzer import AnalyzerAgent
+from .scorer import ScorerAgent
 from models import AgentResponse
 from datetime import datetime
 
@@ -11,8 +12,12 @@ logger = logging.getLogger(__name__)
 # Keywords that indicate the user wants analysis vs discovery
 ANALYZER_KEYWORDS = [
     "analyze", "eligibility", "eligible", "qualify", "compare",
-    "match", "fit", "criteria", "requirement", "deep dive",
+    "criteria", "requirement", "deep dive",
     "check", "review", "assess", "evaluate", "rfp"
+]
+
+SCORER_KEYWORDS = [
+    "score", "match", "rating", "rank", "percent", "percentage", "points"
 ]
 
 class AgentOrchestrator:
@@ -25,7 +30,7 @@ class AgentOrchestrator:
         self.agents = {
             "discovery": DiscoveryAgent(),
             "analyzer": AnalyzerAgent(),
-            # "scorer": ScorerAgent()      # Future
+            "scorer": ScorerAgent()
         }
         
     def _route(self, user_input: str) -> str:
@@ -34,9 +39,17 @@ class AgentOrchestrator:
         Determines which specialist agent should handle the request.
         """
         lower = user_input.lower()
+        
+        # Priority 1: Scorer
+        for keyword in SCORER_KEYWORDS:
+            if keyword in lower:
+                return "scorer"
+                
+        # Priority 2: Analyzer
         for keyword in ANALYZER_KEYWORDS:
             if keyword in lower:
                 return "analyzer"
+        
         return "discovery"
 
     async def chat(self, user_input: str, session_id: str) -> AgentResponse:
