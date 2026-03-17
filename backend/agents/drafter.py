@@ -6,18 +6,6 @@ from tools.retrieve_context import RetrieveContextTool
 
 logger = logging.getLogger(__name__)
 
-def _extract_content(response) -> Optional[str]:
-    """
-    Extracts text content from a NIM response, checking both
-    standard 'content' and Nemotron-specific 'reasoning_content'.
-    """
-    msg = response.choices[0].message
-    content = msg.content
-    if content is None:
-        content = getattr(msg, "reasoning_content", None)
-        if content is None and hasattr(msg, "model_extra"):
-            content = msg.model_extra.get("reasoning_content")
-    return str(content) if content else None
 
 class DrafterAgent(BaseAgent):
     """
@@ -48,7 +36,7 @@ class DrafterAgent(BaseAgent):
             ],
             temperature=0
         )
-        topics = _extract_content(topic_response) or user_input
+        topics = self.extract_content(topic_response) or user_input
         logger.info(f"Drafter RAG topics: {topics}")
 
         # --- Step 2: Retrieve context ---
@@ -80,7 +68,7 @@ Provide a structured proposal draft including:
             temperature=self.temperature
         )
 
-        message = _extract_content(response)
+        message = self.extract_content(response)
         if not message:
             message = "I was unable to generate a proposal draft at this time."
 

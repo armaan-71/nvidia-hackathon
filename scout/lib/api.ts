@@ -1,64 +1,141 @@
 import { NonprofitProfile, GrantOpportunity, ChatMessage, TimelineItem } from './types';
-import { mockProfile, mockGrants, mockTimeline, mockChats } from './mockData';
+import { mockProfile, mockTimeline } from './mockData';
 
-// Helper to simulate network latency
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export async function getNonprofitProfile(): Promise<NonprofitProfile> {
-  await delay(400); // simulate latency
-  return mockProfile;
+// Persistent session ID for this browser tab
+const SESSION_ID = `session-${Date.now()}`;
+
+// ------------------------------------------------------------------
+// Adapter: maps the FastAPI AgentResponse to the frontend ChatMessage
+// ------------------------------------------------------------------
+interface BackendAgentResponse {
+  message: string;
+  active_agent: string;
+  session_id: string;
+  data?: Record<string, unknown>;
+  suggested_actions?: string[];
+  timestamp?: string;
 }
 
-export async function getGrantOpportunities(): Promise<GrantOpportunity[]> {
-  await delay(600);
-  return mockGrants;
+function agentResponseToChat(res: BackendAgentResponse): ChatMessage {
+  return {
+    id: `msg-${Date.now()}`,
+    role: 'agent',
+    content: res.message,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    sources: res.data
+      ? Object.entries(res.data).map(([key, val], i) => ({
+          id: `src-${Date.now()}-${i}`,
+          title: `${key.replace('_', ' ')} data`,
+          snippet: typeof val === 'string' ? val.slice(0, 200) : JSON.stringify(val).slice(0, 200),
+          type: key,
+        }))
+      : undefined,
+    activeAgent: res.active_agent,
+    suggestedActions: res.suggested_actions,
+  };
 }
 
-export async function getGrantById(id: string): Promise<GrantOpportunity | null> {
-  await delay(300);
-  const grant = mockGrants.find((g) => g.id === id);
-  return grant || null;
-}
+// ------------------------------------------------------------------
+// Chat
+// ------------------------------------------------------------------
 
-export async function getSubmissionTimeline(grantId: string): Promise<TimelineItem[]> {
-  await delay(500);
-  // In a real app we'd filter by grantId, for mock we just return the shared timeline
-  return mockTimeline;
-}
-
-// Simple state to hold new chat messages (in-memory for the session)
-let chatMessagesCache = [...mockChats];
+let chatMessagesCache: ChatMessage[] = [];
 
 export async function getChatMessages(): Promise<ChatMessage[]> {
-  await delay(400);
   return chatMessagesCache;
 }
 
-export async function sendChatMessage(messages: ChatMessage[], newText: string): Promise<ChatMessage> {
-  await delay(800);
-  
-  // Create the simulated agent response
-  const agentResponse: ChatMessage = {
-    id: `msg-${Date.now()}`,
-    role: 'agent',
-    content: `I've analyzed your request: "${newText}". Based on your nonprofit profile, I recommend looking at the previously mentioned Monterey Bay Restoration Grant. It perfectly fits your immediate needs.`,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    sources: [
-      {
-        id: `s-${Date.now()}`,
-        title: 'Monterey Bay Restoration Grant Overview',
-        snippet: 'Local nonprofits active in Monterey Bay with immediate conservation goals.',
-        type: 'grant_doc',
-      }
-    ]
-  };
-  
-  // In a real app, we might persist these to a DB. Here we update cache for client demo
-  chatMessagesCache = [...messages, agentResponse];
-  return agentResponse;
+export async function sendChatMessage(
+  _history: ChatMessage[],
+  newText: string
+): Promise<ChatMessage> {
+  const res = await fetch(`${API_BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: newText, session_id: SESSION_ID }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Backend error: ${res.status}`);
+  }
+
+  const data: BackendAgentResponse = await res.json();
+  const chatMsg = agentResponseToChat(data);
+  chatMessagesCache = [..._history, chatMsg];
+  return chatMsg;
 }
 
+// ------------------------------------------------------------------
+// Grants  (fetched from backend session store after a discovery chat)
+// ------------------------------------------------------------------
+
+export async function getGrantOpportunities(): Promise<GrantOpportunity[]> {
+  try {
+    const res = await fetch(`${API_BASE}/grants?session_id=${SESSION_ID}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    // Map raw backend grant objects to the frontend GrantOpportunity shape
+    if (Array.isArray(data) && data.length > 0) {
+      return data.map((g: Record<string, unknown>, i: number) => ({
+        id: `g-${i}`,
+        title: (g.title as string) || 'Untitled Grant',
+        funder: (g.url as string) || 'Unknown',
+        deadline: 'TBD',
+        fundingAmount: 'See details',
+        matchScore: Math.round(((g.score as number) || 0) * 100),
+        summary: (g.content as string) || '',
+        eligibility: '',
+        strengths: [],
+        risks: [],
+        sourceUrl: (g.url as string) || '#',
+        status: 'open' as const,
+      }));
+    }
+  } catch (err) {
+    console.warn('Could not fetch grants from backend, using empty list:', err);
+  }
+  return [];
+}
+
+// ------------------------------------------------------------------
+// Profile (mock for now — could wire to a future /profile endpoint)
+// ------------------------------------------------------------------
+
+export async function getNonprofitProfile(): Promise<NonprofitProfile> {
+  return mockProfile;
+}
+
+// ------------------------------------------------------------------
+// Timeline (mock for now)
+// ------------------------------------------------------------------
+
+export async function getSubmissionTimeline(_grantId: string): Promise<TimelineItem[]> {
+  return mockTimeline;
+}
+
+// ------------------------------------------------------------------
+// Document Upload → /ingest
+// ------------------------------------------------------------------
+
 export async function uploadDocuments(files: FileList | null): Promise<boolean> {
-  await delay(1500);
+  if (!files || files.length === 0) return false;
+
+  for (let i = 0; i < files.length; i++) {
+    const formData = new FormData();
+    formData.append('file', files[i]);
+
+    const res = await fetch(`${API_BASE}/ingest`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      console.error(`Ingest failed for ${files[i].name}: ${res.status}`);
+      return false;
+    }
+  }
   return true;
 }

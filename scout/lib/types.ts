@@ -37,6 +37,8 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   sources?: SourceReference[];
+  activeAgent?: string;
+  suggestedActions?: string[];
 }
 
 export interface TimelineItem {

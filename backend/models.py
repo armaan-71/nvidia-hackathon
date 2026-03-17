@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, List, Any
 from datetime import datetime
 
@@ -8,7 +8,7 @@ class AgentResponse(BaseModel):
     session_id: str
     data: Optional[Dict[str, Any]] = None       # Structured payload (e.g., grant details, matches)
     suggested_actions: List[str] = [] # Buttons for UI
-    timestamp: str = datetime.utcnow().isoformat()
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 class ChatRequest(BaseModel):
     message: str

@@ -41,3 +41,17 @@ class BaseAgent:
 
     def get_system_prompt(self) -> str:
         return self.config.get("system_prompt", "You are a helpful assistant.")
+
+    @staticmethod
+    def extract_content(response) -> Optional[str]:
+        """
+        Extracts text content from a NIM response, checking both
+        standard 'content' and Nemotron-specific 'reasoning_content'.
+        """
+        msg = response.choices[0].message
+        content = msg.content
+        if content is None:
+            content = getattr(msg, "reasoning_content", None)
+            if content is None and hasattr(msg, "model_extra"):
+                content = msg.model_extra.get("reasoning_content")
+        return str(content) if content else None

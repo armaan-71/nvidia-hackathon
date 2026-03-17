@@ -7,19 +7,6 @@ from tools.retrieve_context import RetrieveContextTool
 logger = logging.getLogger(__name__)
 
 
-def _extract_content(response) -> Optional[str]:
-    """
-    Extracts text content from a NIM response, checking both
-    standard 'content' and Nemotron-specific 'reasoning_content'.
-    """
-    msg = response.choices[0].message
-    content = msg.content
-    if content is None:
-        content = getattr(msg, "reasoning_content", None)
-        if content is None and hasattr(msg, "model_extra"):
-            content = msg.model_extra.get("reasoning_content")
-    return str(content) if content else None
-
 
 class AnalyzerAgent(BaseAgent):
     """
@@ -53,7 +40,7 @@ class AnalyzerAgent(BaseAgent):
             temperature=0
         )
 
-        topics = _extract_content(topic_response)
+        topics = self.extract_content(topic_response)
         if not topics:
             topics = user_input
         logger.info(f"Extracted RAG topics: {topics}")
@@ -86,7 +73,7 @@ Provide a structured eligibility analysis with:
             temperature=self.temperature
         )
 
-        analysis_message = _extract_content(analysis_response)
+        analysis_message = self.extract_content(analysis_response)
         if not analysis_message:
             analysis_message = "I retrieved your nonprofit's documents but was unable to generate an analysis. Please try again."
 
