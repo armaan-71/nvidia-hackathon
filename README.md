@@ -1,5 +1,7 @@
 # Scout: Autonomous Funding Agent for Nonprofits
 
+🏆 Built at NVIDIA Agents for Impact Hackathon 2026
+
 Scout is an autonomous agentic system designed to help nonprofits discover, evaluate, and apply for grants. Unlike traditional grant search tools, Scout executes a full agentic workflow: reasoning about opportunities, retrieving relevant context from internal documents, and producing actionable outputs like proposal drafts and submission plans.
 
 The system is built to showcase **NVIDIA’s agent ecosystem**, including Nemotron models for reasoning, NIM for inference, and the NeMo Agent Toolkit for orchestration.
