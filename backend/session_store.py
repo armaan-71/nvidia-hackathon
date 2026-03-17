@@ -51,3 +51,19 @@ def get_workspace(session_id: str, key: str, default: Any = None) -> Any:
 
 def get_full_workspace(session_id: str) -> Dict[str, Any]:
     return _workspace.get(session_id, {})
+
+
+def clear_session(session_id: Optional[str] = None):
+    """
+    Clears all session data. If session_id is provided, only that session is cleared.
+    Otherwise, wipes everything.
+    """
+    global _grants, _messages, _workspace
+    if session_id:
+        _grants.pop(session_id, None)
+        _messages.pop(session_id, None)
+        _workspace.pop(session_id, None)
+    else:
+        _grants = {}
+        _messages = {}
+        _workspace = {}

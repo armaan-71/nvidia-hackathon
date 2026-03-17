@@ -59,9 +59,9 @@ Return your response in this format:
         # Attempt to extract the numeric score for the 'data' field
         score = 0
         try:
-            # Very simple parser for "[0-100]"
-            if "Match Score:**" in message:
-                score_str = message.split("Match Score:**")[1].split("\n")[0].strip()
+            # Match the new format "Overall Score: **[0-100]**"
+            if "Overall Score:**" in message:
+                score_str = message.split("Overall Score:**")[1].split("/")[0].strip()
                 # Clean up non-digits
                 score_digits = "".join(filter(str.isdigit, score_str))
                 score = int(score_digits) if score_digits else 0

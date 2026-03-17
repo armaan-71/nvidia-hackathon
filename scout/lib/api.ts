@@ -120,22 +120,46 @@ export async function getSubmissionTimeline(_grantId: string): Promise<TimelineI
 // Document Upload → /ingest
 // ------------------------------------------------------------------
 
-export async function uploadDocuments(files: FileList | null): Promise<boolean> {
-  if (!files || files.length === 0) return false;
-
+export async function uploadDocuments(files: FileList): Promise<boolean> {
+  const formData = new FormData();
   for (let i = 0; i < files.length; i++) {
-    const formData = new FormData();
     formData.append('file', files[i]);
+  }
 
+  try {
     const res = await fetch(`${API_BASE}/ingest`, {
       method: 'POST',
       body: formData,
     });
-
-    if (!res.ok) {
-      console.error(`Ingest failed for ${files[i].name}: ${res.status}`);
-      return false;
-    }
+    return res.ok;
+  } catch (err) {
+    console.error('Ingestion failed:', err);
+    return false;
   }
-  return true;
+}
+
+export async function clearKnowledgeBase(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/reset?session_id=${SESSION_ID}`, {
+      method: 'POST',
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('Failed to clear knowledge base:', err);
+    return false;
+  }
+}
+
+export async function getDashboardData() {
+  try {
+    const res = await fetch(`${API_BASE}/dashboard?session_id=${SESSION_ID}`);
+    if (!res.ok) throw new Error('Failed to fetch dashboard data');
+    return await res.json();
+  } catch (err) {
+    console.error(err);
+    return {
+      stats: { opportunities_found: 0, avg_match_score: 0, upcoming_deadlines: 0 },
+      recent_activity: []
+    };
+  }
 }

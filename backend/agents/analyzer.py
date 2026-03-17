@@ -58,11 +58,21 @@ class AnalyzerAgent(BaseAgent):
 **Our Nonprofit's Profile (from uploaded documents):**
 {nonprofit_context}
 
-Provide a structured eligibility analysis with:
-1. Key eligibility criteria identified from the grant
-2. For each criterion: MEETS / PARTIALLY MEETS / DOES NOT MEET with justification
-3. Overall eligibility summary
-4. Recommended next steps"""
+Provide a structured, premium eligibility analysis using this specific layout:
+# 🔍 Eligibility Analysis
+## 📡 Overall Verdict: [✅ ELIGIBLE / ⚠️ PARTIAL / ❌ NOT ELIGIBLE]
+
+### 📋 Discovery vs. Bio Comparison
+| Criterion | Status | Evidence/Justification |
+|-----------|--------|------------------------|
+| [Requirement 1] | [Status] | [Citation from bio] |
+| [Requirement 2] | [Status] | [Citation from bio] |
+
+### 💡 Strategic Summary
+[2-3 sentences on why this fits or why it's a risk]
+
+### 🚀 Recommended Next Steps
+[Next action items]"""
 
         analysis_response = self.client.chat.completions.create(
             model=self.model,

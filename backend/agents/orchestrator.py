@@ -11,7 +11,12 @@ import session_store
 
 logger = logging.getLogger(__name__)
 
-# Keywords that indicate intent
+PROFILE_KEYWORDS = [
+    "who am i", "my mission", "my organization", "my profile",
+    "about me", "about us", "our mission", "tell me about",
+    "what do we do", "what is my", "what are my"
+]
+
 ANALYZER_KEYWORDS = [
     "analyze", "eligibility", "eligible", "qualify", "compare",
     "criteria", "requirement", "deep dive",
@@ -26,12 +31,13 @@ DRAFTER_KEYWORDS = [
     "draft", "write", "proposal", "narrative", "outline", "apply", "application"
 ]
 
-# Pipeline definitions: which agent flows naturally into which
-PIPELINES = {
-    "discovery": ["analyzer", "scorer"],     # Discovery -> Analyze -> Score
-    "analyzer": ["scorer"],                  # Analyze -> Score
-    "scorer": [],                            # Scorer is a terminal step
-    "drafter": [],                           # Drafter is a terminal step
+# Next Step mapping for the Interactive Workflow
+# (Defines the "Suggested Action" text for the next agent)
+NEXT_STEPS = {
+    "discovery": "Analyze eligibility for these grants",
+    "analyzer": "Calculate match scores",
+    "scorer": "Draft a proposal for the top match",
+    "drafter": None
 }
 
 
@@ -39,7 +45,7 @@ class AgentOrchestrator:
     """
     The 'Brain' of Scout. Manages agent sessions and decides
     which specialist agent should handle the request.
-    Supports multi-agent pipelines where agents chain automatically.
+    Supports interactive workflows with manual handoffs.
     """
     def __init__(self):
         self.agents = {
@@ -53,6 +59,20 @@ class AgentOrchestrator:
         """Simple intent-based routing."""
         lower = user_input.lower()
 
+        # Profile/identity queries → Analyzer (uses RAG)
+        for keyword in PROFILE_KEYWORDS:
+            if keyword in lower:
+                return "analyzer"
+
+        # Check for specific "Next Step" commands first
+        if "analyze" in lower and ("eligibility" in lower or "grant" in lower):
+            return "analyzer"
+        if "score" in lower or "match score" in lower:
+            return "scorer"
+        if "draft" in lower or "proposal" in lower:
+            return "drafter"
+
+        # Fallback to keyword routing
         for keyword in DRAFTER_KEYWORDS:
             if keyword in lower:
                 return "drafter"
@@ -69,135 +89,82 @@ class AgentOrchestrator:
 
     async def chat(self, user_input: str, session_id: str) -> AgentResponse:
         """
-        Main entry point. Routes to the starting agent and then
-        automatically chains through the pipeline, collecting results.
+        Main entry point. Routes to a single agent and provides
+        the next step as a suggested action.
         """
-        start_agent = self._route(user_input)
-        logger.info(f"Pipeline start [{start_agent}] for session {session_id}")
+        agent_name = self._route(user_input)
+        logger.info(f"Interactive Step: [{agent_name}] for session {session_id}")
 
         # Save user message
         session_store.append_message(session_id, "user", user_input)
 
-        # Run the pipeline
-        pipeline_results = await self._run_pipeline(
-            start_agent, user_input, session_id
-        )
+        # 1. Prepare input context for the agent
+        # If the user is asking for analysis/scoring/drafting, 
+        # we might need to pull the previous agent's results from the workspace.
+        context_input = self._build_context_input(agent_name, user_input, session_id)
 
-        # Build the combined response from all pipeline steps
-        combined_response = self._build_combined_response(
-            pipeline_results, session_id
+        # 2. Run the single agent
+        agent = self.agents.get(agent_name)
+        if not agent:
+            return AgentResponse(
+                message="Agent not found.",
+                active_agent="system",
+                session_id=session_id
+            )
+
+        result = await agent.run(context_input)
+        
+        # 3. Save results to workspace
+        session_store.set_workspace(session_id, f"{agent_name}_result", result.get("message", ""))
+        if result.get("data"):
+            session_store.set_workspace(session_id, f"{agent_name}_data", result["data"])
+
+        # 4. Determine Suggested Action for the "Next Handoff"
+        suggested_actions = result.get("suggested_actions", [])
+        next_step_label = NEXT_STEPS.get(agent_name)
+        if next_step_label and next_step_label not in suggested_actions:
+            suggested_actions.insert(0, next_step_label)
+
+        # Build response
+        response = AgentResponse(
+            message=result["message"],
+            active_agent=agent_name,
+            session_id=session_id,
+            data=result.get("data"),
+            suggested_actions=suggested_actions,
+            timestamp=datetime.utcnow().isoformat()
         )
 
         # Save assistant message
         session_store.append_message(
             session_id, "assistant",
-            combined_response.message,
-            agent=combined_response.active_agent
+            response.message,
+            agent=response.active_agent
         )
 
-        return combined_response
+        return response
 
-    async def _run_pipeline(
-        self, start_agent: str, user_input: str, session_id: str
-    ) -> List[Dict[str, Any]]:
+    def _build_context_input(self, agent_name: str, user_input: str, session_id: str) -> str:
         """
-        Runs agents sequentially through the pipeline.
-        Each agent's output feeds into the next as context.
+        Enriches the user input with previous agent results if needed.
         """
-        results = []
-        current_agent_name = start_agent
-        current_input = user_input
+        if agent_name == "analyzer":
+            # Analyzer needs Discovery results
+            discovery_data = session_store.get_workspace(session_id, "discovery_result")
+            if discovery_data:
+                return f"Analyze the eligibility of these grants for me: {discovery_data}\nUser additional context: {user_input}"
+        
+        if agent_name == "scorer":
+            # Scorer needs Analyzer results
+            analyzer_data = session_store.get_workspace(session_id, "analyzer_result")
+            if analyzer_data:
+                return f"Provide match scores for this analysis: {analyzer_data}\nUser additional context: {user_input}"
 
-        while current_agent_name:
-            agent = self.agents.get(current_agent_name)
-            if not agent:
-                break
+        if agent_name == "drafter":
+            # Drafter needs Scorer/Analyzer results
+            best_grant = session_store.get_workspace(session_id, "scorer_result") or \
+                         session_store.get_workspace(session_id, "analyzer_result")
+            if best_grant:
+                return f"Draft a proposal for this grant: {best_grant}\nUser additional context: {user_input}"
 
-            logger.info(f"  ▶ Running [{current_agent_name}]...")
-            result = await agent.run(current_input)
-            result["_agent_name"] = current_agent_name
-            results.append(result)
-
-            # Store the result in the shared workspace
-            session_store.set_workspace(
-                session_id,
-                f"{current_agent_name}_result",
-                result.get("message", "")
-            )
-
-            # If the agent returned data, store it too
-            if result.get("data"):
-                session_store.set_workspace(
-                    session_id,
-                    f"{current_agent_name}_data",
-                    result["data"]
-                )
-
-            # Determine next agent in the pipeline
-            next_agents = PIPELINES.get(current_agent_name, [])
-            if next_agents:
-                current_agent_name = next_agents[0]
-                # Feed the previous agent's output as context for the next
-                current_input = result.get("message", user_input)
-                logger.info(f"  ⮕ Chaining to [{current_agent_name}]")
-            else:
-                current_agent_name = None  # End of pipeline
-
-        return results
-
-    def _build_combined_response(
-        self, results: List[Dict[str, Any]], session_id: str
-    ) -> AgentResponse:
-        """
-        Merges pipeline results into a single AgentResponse for the frontend.
-        Shows a summary of what each agent did.
-        """
-        if not results:
-            return AgentResponse(
-                message="I'm sorry, I couldn't process that request.",
-                active_agent="system",
-                session_id=session_id
-            )
-
-        # If only one agent ran, return its result directly
-        if len(results) == 1:
-            r = results[0]
-            return AgentResponse(
-                message=r["message"],
-                active_agent=r.get("active_agent", r.get("_agent_name", "system")),
-                session_id=session_id,
-                data=r.get("data"),
-                suggested_actions=r.get("suggested_actions", []),
-                timestamp=datetime.utcnow().isoformat()
-            )
-
-        # Multiple agents ran — build a combined narrative
-        sections = []
-        combined_data = {}
-        last_agent = results[-1].get("_agent_name", "system")
-
-        for r in results:
-            agent_name = r.get("_agent_name", "agent")
-            label = agent_name.capitalize()
-            sections.append(f"### 🔹 {label} Agent\n{r['message']}")
-
-            # Merge data from all agents
-            if r.get("data"):
-                combined_data[agent_name] = r["data"]
-
-        combined_message = (
-            "## Scout Pipeline Report\n\n"
-            + "\n\n---\n\n".join(sections)
-        )
-
-        # Use the last agent's suggested_actions
-        last_actions = results[-1].get("suggested_actions", [])
-
-        return AgentResponse(
-            message=combined_message,
-            active_agent=last_agent,
-            session_id=session_id,
-            data=combined_data if combined_data else None,
-            suggested_actions=last_actions,
-            timestamp=datetime.utcnow().isoformat()
-        )
+        return user_input

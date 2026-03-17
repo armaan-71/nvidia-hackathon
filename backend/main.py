@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import shutil
 import os
 import tempfile
@@ -73,6 +73,56 @@ async def ingest_document(file: UploadFile = File(...)):
                 os.remove(temp_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+
+@app.post("/reset")
+async def reset_knowledge_base(session_id: Optional[str] = Query(None)):
+    """
+    Clears all documents from the RAG vector store and resets session memory.
+    """
+    try:
+        success = vector_store.clear_all_documents()
+        session_store.clear_session(session_id)
+        if success:
+            return {"message": "Knowledge base and session history cleared."}
+        else:
+            return {"message": "Knowledge base was already empty."}
+    except Exception as e:
+        print(f"Reset error: {e}")
+        raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
+
+@app.get("/dashboard")
+async def get_dashboard_summary(session_id: str = Query(...)):
+    """
+    Returns aggregated stats and recent activity for the dashboard.
+    """
+    grants = session_store.get_grants(session_id)
+    messages = session_store.get_messages(session_id)
+    
+    # Calculate stats
+    total_grants = len(grants)
+    avg_score = 0
+    if total_grants > 0:
+        # Calculate average match score
+        avg_score = sum(round(g.get("score", 0) * 100) for g in grants if "score" in g) // total_grants
+
+    # Extract recent activity (last 2 agent messages)
+    activity = []
+    agent_msgs = [m for m in messages if m.get("role") == "agent"][-2:]
+    for m in agent_msgs:
+        activity.append({
+            "agent": m.get("agent", "Scout"),
+            "action": m.get("content", "")[:100] + "...",
+            "timestamp": "Just now"
+        })
+
+    return {
+        "stats": {
+            "opportunities_found": total_grants,
+            "avg_match_score": avg_score,
+            "upcoming_deadlines": 0 # Placeholder
+        },
+        "recent_activity": activity
+    }
 
 @app.get("/search")
 async def search_knowledge(q: str):

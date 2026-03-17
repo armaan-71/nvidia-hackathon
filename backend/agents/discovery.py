@@ -70,7 +70,16 @@ class DiscoveryAgent(BaseAgent):
             }
         
         # 3. Summarize results with Nemotron
-        summary_prompt = "Based on these search results, summarize the top 3 grant opportunities found. Include specific deadlines and amounts if available. Be concise."
+        summary_prompt = """Based on these search results, present the top 3 grant opportunities.
+        Use a high-end, structured format for each grant:
+        ### 🏷️ [Grant Name]
+        - **🏢 Source:** [Source Name]
+        - **📅 Deadline:** [Date or 'Open']
+        - **💰 Amount:** [Amount or 'Not specified']
+        - **📝 Summary:** [1-2 sentences]
+        - **🔗 [View RFP](URL)**
+
+        Be professional and use emojis to make the data scannable."""
         summary_prompt += f"\n\nResults:\n{json.dumps(search_results[:5])}"
         
         final_response = self.client.chat.completions.create(
@@ -82,14 +91,7 @@ class DiscoveryAgent(BaseAgent):
             temperature=self.temperature
         )
         
-        final_message = final_response.choices[0].message.content
-        
-        # Again, check reasoning_content for the final summary if content is None
-        if final_message is None:
-            msg_obj = final_response.choices[0].message
-            final_message = getattr(msg_obj, "reasoning_content", None)
-            if final_message is None and hasattr(msg_obj, "model_extra"):
-                final_message = msg_obj.model_extra.get("reasoning_content")
+        final_message = self.extract_content(final_response)
 
         if final_message is None:
             final_message = "I found some results but failed to summarize them. View the raw data below."

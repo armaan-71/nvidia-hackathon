@@ -28,7 +28,7 @@ class VectorStoreManager:
         embeddings = self.embedder.get_embeddings(texts, input_type="passage")
         
         if embeddings:
-            self.collection.add(
+            self.collection.upsert(
                 embeddings=embeddings,
                 documents=texts,
                 metadatas=metadatas,
@@ -36,6 +36,21 @@ class VectorStoreManager:
             )
             return True
         return False
+
+    def clear_all_documents(self):
+        """
+        Wipes the entire collection for a fresh start.
+        """
+        try:
+            # Get all IDs and delete them to keep the collection object valid
+            results = self.collection.get()
+            ids = results.get('ids', [])
+            if ids:
+                self.collection.delete(ids=ids)
+            return True
+        except Exception as e:
+            print(f"Error clearing collection items: {e}")
+            return False
 
     def query(self, query_text: str, n_results: int = 5) -> List[Dict[str, Any]]:
         """

@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import Link from 'next/link';
 import { ChatMessage, SourceReference } from '@/lib/types';
-import { getChatMessages, sendChatMessage } from '@/lib/api';
+import { getChatMessages, sendChatMessage, clearKnowledgeBase } from '@/lib/api';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -73,6 +76,25 @@ export default function ChatPage() {
     setInput(action);
   };
 
+  const handleReset = async () => {
+    if (!confirm('Are you sure you want to clear the entire knowledge base and chat history?')) return;
+    
+    try {
+      const success = await clearKnowledgeBase();
+      if (success) {
+        setMessages([]);
+        setUploadStatus('idle');
+        alert('Knowledge base and chat reset successfully.');
+        window.location.reload(); // Refresh to ensure session ID and caches are fresh
+      } else {
+        alert('Failed to clear knowledge base on backend.');
+      }
+    } catch (err) {
+      console.error('Reset failed:', err);
+      alert('Reset failed. See console for details.');
+    }
+  };
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -115,6 +137,14 @@ export default function ChatPage() {
               multiple 
               accept=".pdf,.doc,.docx,.txt,.md"
             />
+            <button 
+              onClick={handleReset}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all"
+              title="Reset Knowledge Base"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              Reset
+            </button>
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
@@ -170,7 +200,15 @@ export default function ChatPage() {
                       </span>
                     </div>
                   )}
-                  <p className="leading-relaxed whitespace-pre-wrap text-sm">{msg.content}</p>
+                  {msg.role === 'agent' ? (
+                    <div className="markdown-content">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="leading-relaxed whitespace-pre-wrap text-sm">{msg.content}</p>
+                  )}
                   
                   {msg.role === 'agent' && msg.sources && msg.sources.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-neutral-800 flex gap-2">
